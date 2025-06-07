@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 import time
 import requests
 from urllib.parse import unquote, urlparse, parse_qs
@@ -28,6 +29,8 @@ login(HF_TOKEN)
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "Mozilla/5.0"})
 
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
 def get_existing_urls():
     try:
         dataset = load_dataset(DATASET_NAME, split="train")
@@ -36,8 +39,10 @@ def get_existing_urls():
         return set()
 
 def extract_celex_numbers(url):
+    logging.info(f"Fetching CURIA page: {url}")
     response = SESSION.get(url)
     if not response.ok:
+        logging.warning(f"Failed to fetch {url} (status {response.status_code})")
         return set()
     soup = BeautifulSoup(response.text, "html.parser")
     celex_numbers = set()
@@ -51,17 +56,19 @@ def extract_celex_numbers(url):
         elif "CELEX" in qs:
             candidate = qs["CELEX"][0]
         if candidate:
-            match = re.search(r"CELEX[:=]?([\dA-Z]+)", candidate)
+            match = re.search(r"CELEX[:=]?([\dA-Z]+)", candidate, re.I)
             if match:
                 celex_numbers.add(match.group(1))
                 continue
-        match = re.search(r"CELEX[:=]?([\dA-Z]+)", href)
+        match = re.search(r"CELEX[:=]?([\dA-Z]+)", href, re.I)
         if match:
             celex_numbers.add(match.group(1))
+    logging.info(f"Found {len(celex_numbers)} CELEX numbers on {url}")
     return celex_numbers
 
 def fetch_case_content(celex):
     en_url = f"https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{celex}"
+    logging.info(f"Resolving CELEX {celex}")
     response = SESSION.get(en_url)
     nl_url = None
     if response.ok:
@@ -77,6 +84,7 @@ def fetch_case_content(celex):
                 break
     if not nl_url:
         nl_url = EURLEX_TEMPLATE.format(celex)
+    logging.info(f"Fetching Dutch page: {nl_url}")
 
     response = SESSION.get(nl_url)
     if not response.ok:
@@ -94,6 +102,7 @@ def fetch_case_content(celex):
 def main():
     existing_urls = get_existing_urls()
     new_entries = []
+    logging.info(f"Loaded {len(existing_urls)} existing URLs")
 
     for curia_url in CURIA_URLS:
         celex_ids = extract_celex_numbers(curia_url)
@@ -102,6 +111,7 @@ def main():
             if not final_url:
                 continue
             if final_url in existing_urls:
+                logging.info(f"Skipping existing case {final_url}")
                 continue
             if content:
                 new_entries.append({
@@ -109,10 +119,11 @@ def main():
                     "Content": content,
                     "Source": SOURCE
                 })
+                logging.info(f"Added case {final_url}")
                 time.sleep(1)
 
     if not new_entries:
-        print("No new cases found.")
+        logging.info("No new cases found.")
         return
 
     dataset = Dataset.from_dict({
@@ -132,7 +143,7 @@ def main():
         combined_dataset = dataset
 
     combined_dataset.push_to_hub(DATASET_NAME)
-    print(f"Pushed {len(new_entries)} new cases to {DATASET_NAME}.")
+    logging.info(f"Pushed {len(new_entries)} new cases to {DATASET_NAME}.")
 
 if __name__ == "__main__":
     main()
