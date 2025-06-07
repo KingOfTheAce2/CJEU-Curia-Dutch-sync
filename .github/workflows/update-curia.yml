@@ -1,0 +1,30 @@
+name: Bi-daily CJEU Update
+
+on:
+  schedule:
+    - cron: '0 9 */2 * *'  # Every other day at 9:00 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-curia:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4 datasets huggingface_hub
+
+    - name: Run Update Script
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      run: |
+        python update_cases.py
