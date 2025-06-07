@@ -9,7 +9,9 @@ from huggingface_hub import login
 # Config
 CURIA_URLS = [
     "https://curia.europa.eu/en/content/juris/c2_juris.htm",
-    "https://curia.europa.eu/en/content/juris/t2_juris.htm"
+    "https://curia.europa.eu/en/content/juris/t2_juris.htm",
+    "https://curia.europa.eu/en/content/juris/c1_juris.htm",
+    "https://curia.europa.eu/en/content/juris/f1_juris.htm",
 ]
 EURLEX_TEMPLATE = "https://eur-lex.europa.eu/legal-content/NL/TXT/HTML/?uri=CELEX:{}"
 DATASET_NAME = "vGassen/CJEU-Curia-Dutch-Court-Cases"
