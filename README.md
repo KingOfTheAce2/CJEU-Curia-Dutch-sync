@@ -1,0 +1,29 @@
+# CJEU Dutch Court Case Updater
+
+This repository automatically fetches Dutch-language court cases from the Court of Justice of the European Union (CJEU) and pushes them to a Hugging Face dataset.
+
+## 📌 What It Does
+
+- Crawls two official CURIA pages for legal case links:
+  - [C2 Jurisprudence](https://curia.europa.eu/en/content/juris/c2_juris.htm)
+  - [T2 Jurisprudence](https://curia.europa.eu/en/content/juris/t2_juris.htm)
+- Extracts CELEX identifiers from those links
+- Fetches the full Dutch text from [EUR-Lex](https://eur-lex.europa.eu/)
+- Pushes new cases (URL, content, source) to the Hugging Face dataset: [`vGassen/CJEU-Curia-Dutch-Court-Cases`](https://huggingface.co/datasets/vGassen/CJEU-Curia-Dutch-Court-Cases)
+- Runs every other day using GitHub Actions
+
+## 🗂 Dataset Format
+
+Each record in the dataset has:
+
+- `URL`: direct link to the Dutch EUR-Lex case
+- `Content`: full text of the court case in Dutch
+- `Source`: always set to `"CJEU"`
+
+## ⚙️ Setup
+
+1. **Clone the Repo**
+
+```bash
+git clone https://github.com/your-username/your-repo-name.git
+cd your-repo-name
