@@ -29,3 +29,11 @@ Each record in the dataset has:
 ```bash
 git clone https://github.com/your-username/your-repo-name.git
 cd your-repo-name
+```
+
+2. **Set your HF_TOKEN and run the crawler**
+
+```bash
+export HF_TOKEN=your_token
+python update_cases.py
+```
