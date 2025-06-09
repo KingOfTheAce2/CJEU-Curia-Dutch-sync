@@ -48,6 +48,10 @@ def extract_celex_numbers(url):
     celex_numbers = set()
     for a in soup.find_all("a", href=True):
         href = unquote(a["href"])
+        if href.startswith("javascript"):
+            inner = re.search(r"(https?://[^'\"]+)", href)
+            if inner:
+                href = inner.group(1)
         parsed = urlparse(href)
         qs = parse_qs(parsed.query)
         candidate = None
@@ -55,14 +59,16 @@ def extract_celex_numbers(url):
             candidate = qs["uri"][0]
         elif "CELEX" in qs:
             candidate = qs["CELEX"][0]
+        elif "numdoc" in qs:
+            candidate = qs["numdoc"][0]
         if candidate:
-            match = re.search(r"CELEX[:=]?([\dA-Z]+)", candidate, re.I)
+            match = re.search(r"6\d{4}[A-Z]{2}\d{4}", candidate)
             if match:
-                celex_numbers.add(match.group(1))
+                celex_numbers.add(match.group(0))
                 continue
-        match = re.search(r"CELEX[:=]?([\dA-Z]+)", href, re.I)
+        match = re.search(r"6\d{4}[A-Z]{2}\d{4}", href)
         if match:
-            celex_numbers.add(match.group(1))
+            celex_numbers.add(match.group(0))
     logging.info(f"Found {len(celex_numbers)} CELEX numbers on {url}")
     return celex_numbers
 

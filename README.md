@@ -9,7 +9,7 @@ This repository automatically fetches Dutch-language court cases from the Court 
   - [T2 Jurisprudence](https://curia.europa.eu/en/content/juris/t2_juris.htm)
   - [C1 Jurisprudence](https://curia.europa.eu/en/content/juris/c1_juris.htm)
   - [F1 Jurisprudence](https://curia.europa.eu/en/content/juris/f1_juris.htm)
-- Extracts CELEX identifiers from those links
+- Extracts CELEX identifiers from those links. The crawler also handles `javascript:` links that use a `numdoc` parameter instead of a `CELEX` query string
 - Fetches the full Dutch text from [EUR-Lex](https://eur-lex.europa.eu/)
 - Pushes new cases (URL, content, source) to the Hugging Face dataset: [`vGassen/CJEU-Curia-Dutch-Court-Cases`](https://huggingface.co/datasets/vGassen/CJEU-Curia-Dutch-Court-Cases)
 - Runs every other day using GitHub Actions
