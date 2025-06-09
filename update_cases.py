@@ -3,7 +3,7 @@ import re
 import logging
 import time
 import requests
-from urllib.parse import unquote, urlparse, parse_qs
+from urllib.parse import unquote, urlparse, parse_qs, urljoin
 from bs4 import BeautifulSoup
 from datasets import load_dataset, Dataset
 from huggingface_hub import login
@@ -18,6 +18,7 @@ CURIA_URLS = [
 EURLEX_TEMPLATE = "https://eur-lex.europa.eu/legal-content/NL/TXT/HTML/?uri=CELEX:{}"
 DATASET_NAME = "vGassen/CJEU-Curia-Dutch-Court-Cases"
 SOURCE = "CJEU"
+BATCH_SIZE = 100
 
 # Authenticate with Hugging Face
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -48,6 +49,10 @@ def extract_celex_numbers(url):
     celex_numbers = set()
     for a in soup.find_all("a", href=True):
         href = unquote(a["href"])
+        if href.startswith("javascript"):
+            inner = re.search(r"(https?://[^'\"]+)", href)
+            if inner:
+                href = inner.group(1)
         parsed = urlparse(href)
         qs = parse_qs(parsed.query)
         candidate = None
@@ -55,14 +60,16 @@ def extract_celex_numbers(url):
             candidate = qs["uri"][0]
         elif "CELEX" in qs:
             candidate = qs["CELEX"][0]
+        elif "numdoc" in qs:
+            candidate = qs["numdoc"][0]
         if candidate:
-            match = re.search(r"CELEX[:=]?([\dA-Z]+)", candidate, re.I)
+            match = re.search(r"6\d{4}[A-Z]{2}\d{4}", candidate)
             if match:
-                celex_numbers.add(match.group(1))
+                celex_numbers.add(match.group(0))
                 continue
-        match = re.search(r"CELEX[:=]?([\dA-Z]+)", href, re.I)
+        match = re.search(r"6\d{4}[A-Z]{2}\d{4}", href)
         if match:
-            celex_numbers.add(match.group(1))
+            celex_numbers.add(match.group(0))
     logging.info(f"Found {len(celex_numbers)} CELEX numbers on {url}")
     return celex_numbers
 
@@ -76,10 +83,8 @@ def fetch_case_content(celex):
         for a in soup.find_all("a", href=True):
             href = a["href"]
             if "NL/TXT" in href and "CELEX" in href:
-                if href.startswith("//"):
-                    href = "https:" + href
-                elif href.startswith("/"):
-                    href = "https://eur-lex.europa.eu" + href
+                if not href.startswith("http"):
+                    href = urljoin("https://eur-lex.europa.eu/", href)
                 nl_url = href
                 break
     if not nl_url:
@@ -101,7 +106,16 @@ def fetch_case_content(celex):
 
 def main():
     existing_urls = get_existing_urls()
-    new_entries = []
+    new_batch = []
+    all_urls = list(existing_urls)
+    all_contents = []
+    all_sources = []
+    try:
+        existing_dataset = load_dataset(DATASET_NAME, split="train")
+        all_contents = list(existing_dataset["Content"])
+        all_sources = list(existing_dataset["Source"])
+    except Exception:
+        pass
     logging.info(f"Loaded {len(existing_urls)} existing URLs")
 
     for curia_url in CURIA_URLS:
@@ -114,36 +128,36 @@ def main():
                 logging.info(f"Skipping existing case {final_url}")
                 continue
             if content:
-                new_entries.append({
+                new_batch.append({
                     "URL": final_url,
                     "Content": content,
-                    "Source": SOURCE
+                    "Source": SOURCE,
                 })
                 logging.info(f"Added case {final_url}")
                 time.sleep(1)
+                if len(new_batch) >= BATCH_SIZE:
+                    all_urls.extend([e["URL"] for e in new_batch])
+                    all_contents.extend([e["Content"] for e in new_batch])
+                    all_sources.extend([e["Source"] for e in new_batch])
+                    Dataset.from_dict({
+                        "URL": all_urls,
+                        "Content": all_contents,
+                        "Source": all_sources,
+                    }).push_to_hub(DATASET_NAME)
+                    logging.info(f"Pushed {len(new_batch)} cases to {DATASET_NAME}")
+                    existing_urls.update(e["URL"] for e in new_batch)
+                    new_batch = []
 
-    if not new_entries:
-        logging.info("No new cases found.")
-        return
-
-    dataset = Dataset.from_dict({
-        "URL": [e["URL"] for e in new_entries],
-        "Content": [e["Content"] for e in new_entries],
-        "Source": [e["Source"] for e in new_entries]
-    })
-
-    try:
-        existing_dataset = load_dataset(DATASET_NAME, split="train")
-        combined_dataset = Dataset.from_dict({
-            "URL": existing_dataset["URL"] + dataset["URL"],
-            "Content": existing_dataset["Content"] + dataset["Content"],
-            "Source": existing_dataset["Source"] + dataset["Source"]
-        })
-    except Exception:
-        combined_dataset = dataset
-
-    combined_dataset.push_to_hub(DATASET_NAME)
-    logging.info(f"Pushed {len(new_entries)} new cases to {DATASET_NAME}.")
+    if new_batch:
+        all_urls.extend([e["URL"] for e in new_batch])
+        all_contents.extend([e["Content"] for e in new_batch])
+        all_sources.extend([e["Source"] for e in new_batch])
+        Dataset.from_dict({
+            "URL": all_urls,
+            "Content": all_contents,
+            "Source": all_sources,
+        }).push_to_hub(DATASET_NAME)
+        logging.info(f"Pushed {len(new_batch)} cases to {DATASET_NAME}")
 
 if __name__ == "__main__":
     main()
