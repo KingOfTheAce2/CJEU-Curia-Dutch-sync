@@ -80,13 +80,20 @@ def fetch_case_content(celex):
     nl_url = None
     if response.ok:
         soup = BeautifulSoup(response.text, "html.parser")
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if "NL/TXT" in href and "CELEX" in href:
-                if not href.startswith("http"):
-                    href = urljoin("https://eur-lex.europa.eu/", href)
-                nl_url = href
-                break
+
+        def find_nl_link():
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if "CELEX" not in href:
+                    continue
+                upper = href.upper()
+                if "NL/TXT" in upper or "/NL/" in upper or "LG=NL" in upper or "LOCALE=NL" in upper:
+                    if not href.startswith("http"):
+                        href = urljoin("https://eur-lex.europa.eu/", href)
+                    return href
+            return None
+
+        nl_url = find_nl_link()
     if not nl_url:
         nl_url = EURLEX_TEMPLATE.format(celex)
     logging.info(f"Fetching Dutch page: {nl_url}")
