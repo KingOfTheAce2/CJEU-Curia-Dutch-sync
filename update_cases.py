@@ -10,8 +10,6 @@ from huggingface_hub import login
 
 # Config
 CURIA_URLS = [
-    "https://curia.europa.eu/en/content/juris/c2_juris.htm",
-    "https://curia.europa.eu/en/content/juris/t2_juris.htm",
     "https://curia.europa.eu/en/content/juris/c1_juris.htm",
     "https://curia.europa.eu/en/content/juris/f1_juris.htm",
 ]
