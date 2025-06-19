@@ -15,9 +15,9 @@ CURIA_URLS = [
     "https://curia.europa.eu/en/content/juris/c1_juris.htm",
     "https://curia.europa.eu/en/content/juris/f1_juris.htm",
 ]
-EURLEX_TEMPLATE = "https://eur-lex.europa.eu/legal-content/NL/TXT/HTML/?uri=CELEX:{}"
+EURLEX_TEMPLATE = "https://eur-lex.europa.eu/legal-content/NL/TXT/HTML/?uri={}"
 DATASET_NAME = "vGassen/CJEU-Curia-Dutch-Court-Cases"
-SOURCE = "CJEU"
+SOURCE = "Court of Justice of the European Union"
 BATCH_SIZE = 100
 
 # Authenticate with Hugging Face
@@ -107,8 +107,23 @@ def fetch_case_content(celex):
         content_div = soup.find("div", {"id": "Texte-integral"})
     if not content_div:
         return None, None
-    paragraphs = content_div.find_all("p")
-    text = "\n".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+
+    section_html = str(content_div)
+    match = re.search(
+        r"(<h2[^>]*>\s*Trefwoorden\s*</h2>.*?<h2[^>]*>\s*Dictum\s*</h2>)",
+        section_html,
+        flags=re.I | re.S,
+    )
+    if not match:
+        return None, None
+
+    section_soup = BeautifulSoup(match.group(1), "html.parser")
+    texts = []
+    for tag in section_soup.find_all(["h2", "p"]):
+        t = tag.get_text(strip=True)
+        if t:
+            texts.append(t)
+    text = "\n".join(texts)
     return nl_url, text
 
 def main():
@@ -125,35 +140,37 @@ def main():
         pass
     logging.info(f"Loaded {len(existing_urls)} existing URLs")
 
+    all_celex = set()
     for curia_url in CURIA_URLS:
-        celex_ids = extract_celex_numbers(curia_url)
-        for celex in celex_ids:
-            final_url, content = fetch_case_content(celex)
-            if not final_url:
-                continue
-            if final_url in existing_urls:
-                logging.info(f"Skipping existing case {final_url}")
-                continue
-            if content:
-                new_batch.append({
-                    "URL": final_url,
-                    "Content": content,
-                    "Source": SOURCE,
-                })
-                logging.info(f"Added case {final_url}")
-                time.sleep(1)
-                if len(new_batch) >= BATCH_SIZE:
-                    all_urls.extend([e["URL"] for e in new_batch])
-                    all_contents.extend([e["Content"] for e in new_batch])
-                    all_sources.extend([e["Source"] for e in new_batch])
-                    Dataset.from_dict({
-                        "URL": all_urls,
-                        "Content": all_contents,
-                        "Source": all_sources,
-                    }).push_to_hub(DATASET_NAME)
-                    logging.info(f"Pushed {len(new_batch)} cases to {DATASET_NAME}")
-                    existing_urls.update(e["URL"] for e in new_batch)
-                    new_batch = []
+        all_celex.update(extract_celex_numbers(curia_url))
+
+    for celex in sorted(all_celex):
+        final_url, content = fetch_case_content(celex)
+        if not final_url:
+            continue
+        if final_url in existing_urls:
+            logging.info(f"Skipping existing case {final_url}")
+            continue
+        if content:
+            new_batch.append({
+                "URL": final_url,
+                "Content": content,
+                "Source": SOURCE,
+            })
+            logging.info(f"Added case {final_url}")
+            time.sleep(1)
+            if len(new_batch) >= BATCH_SIZE:
+                all_urls.extend([e["URL"] for e in new_batch])
+                all_contents.extend([e["Content"] for e in new_batch])
+                all_sources.extend([e["Source"] for e in new_batch])
+                Dataset.from_dict({
+                    "URL": all_urls,
+                    "Content": all_contents,
+                    "Source": all_sources,
+                }).push_to_hub(DATASET_NAME)
+                logging.info(f"Pushed {len(new_batch)} cases to {DATASET_NAME}")
+                existing_urls.update(e["URL"] for e in new_batch)
+                new_batch = []
 
     if new_batch:
         all_urls.extend([e["URL"] for e in new_batch])
