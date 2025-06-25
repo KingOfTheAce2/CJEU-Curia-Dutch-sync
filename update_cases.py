@@ -19,6 +19,8 @@ EURLEX_TEMPLATE = "https://eur-lex.europa.eu/legal-content/NL/TXT/HTML/?uri={}"
 DATASET_NAME = "vGassen/CJEU-Curia-Dutch-Court-Cases"
 SOURCE = "Court of Justice of the European Union"
 BATCH_SIZE = 100
+CELEX_LIMIT = 250
+PROCESSED_CELEX_FILE = "processed_celex.txt"
 
 # Authenticate with Hugging Face
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -38,6 +40,19 @@ def get_existing_urls():
         return set(dataset["URL"])
     except Exception:
         return set()
+
+def get_processed_celex():
+    if not os.path.exists(PROCESSED_CELEX_FILE):
+        return set()
+    with open(PROCESSED_CELEX_FILE, "r") as f:
+        return set(line.strip() for line in f if line.strip())
+
+def save_processed_celex(new_celex):
+    if not new_celex:
+        return
+    with open(PROCESSED_CELEX_FILE, "a") as f:
+        for c in new_celex:
+            f.write(c + "\n")
 
 def extract_celex_numbers(url):
     logging.info(f"Fetching CURIA page: {url}")
@@ -128,7 +143,9 @@ def fetch_case_content(celex):
 
 def main():
     existing_urls = get_existing_urls()
+    processed_celex = get_processed_celex()
     new_batch = []
+    new_celex = []
     all_urls = list(existing_urls)
     all_contents = []
     all_sources = []
@@ -144,7 +161,9 @@ def main():
     for curia_url in CURIA_URLS:
         all_celex.update(extract_celex_numbers(curia_url))
 
-    for celex in sorted(all_celex):
+    to_process = sorted(all_celex - processed_celex)[:CELEX_LIMIT]
+
+    for celex in to_process:
         final_url, content = fetch_case_content(celex)
         if not final_url:
             continue
@@ -157,6 +176,7 @@ def main():
                 "Content": content,
                 "Source": SOURCE,
             })
+            new_celex.append(celex)
             logging.info(f"Added case {final_url}")
             time.sleep(1)
             if len(new_batch) >= BATCH_SIZE:
@@ -170,7 +190,9 @@ def main():
                 }).push_to_hub(DATASET_NAME)
                 logging.info(f"Pushed {len(new_batch)} cases to {DATASET_NAME}")
                 existing_urls.update(e["URL"] for e in new_batch)
+                save_processed_celex(new_celex)
                 new_batch = []
+                new_celex = []
 
     if new_batch:
         all_urls.extend([e["URL"] for e in new_batch])
@@ -182,6 +204,7 @@ def main():
             "Source": all_sources,
         }).push_to_hub(DATASET_NAME)
         logging.info(f"Pushed {len(new_batch)} cases to {DATASET_NAME}")
+        save_processed_celex(new_celex)
 
 if __name__ == "__main__":
     main()
