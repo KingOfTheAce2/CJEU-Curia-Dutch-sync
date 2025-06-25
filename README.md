@@ -14,7 +14,9 @@ This repository automatically fetches Dutch-language court cases from the Court 
   from [EUR-Lex](https://eur-lex.europa.eu/)
 - Pushes new cases (URL, content, source) to the Hugging Face dataset: [`vGassen/CJEU-Curia-Dutch-Court-Cases`](https://huggingface.co/datasets/vGassen/CJEU-Curia-Dutch-Court-Cases)
 - Processes cases in batches of 100 to avoid memory spikes
-- Runs every other day using GitHub Actions
+- Remembers processed CELEX numbers so pages are not re-crawled
+- Crawls up to 250 new CELEX numbers per run
+- Runs daily using GitHub Actions
 
 ## 🗂 Dataset Format
 
