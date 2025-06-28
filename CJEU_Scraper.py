@@ -40,9 +40,10 @@ RETRY_ATTEMPTS = 3 # Number of retries for failed HTTP requests
 RETRY_DELAY = 5 # Seconds to wait before retrying a failed request
 SOURCE_NAME = "Court of Justice of the European Union"
 
-# Regex to find CELEX numbers. This pattern is common for court cases.
-# Format: 6<YYYY><Court Code><Case Number>
-CELEX_REGEX = re.compile(r'(6\d{4}[A-Z]\d{4})')
+# Regex to find CELEX numbers. This pattern is common for CJEU cases.
+# Format: 6<YYYY><Case Type><Case Number> where the case type consists of
+# two uppercase letters (e.g. CJ, TJ, CC).
+CELEX_REGEX = re.compile(r'(6\d{4}[A-Z]{2}\d{4})')
 
 
 # --- State Management Functions ---
