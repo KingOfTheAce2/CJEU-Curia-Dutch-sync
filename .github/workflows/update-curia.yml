@@ -27,4 +27,4 @@ jobs:
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        python update_cases.py
+        python CJEU_Scraper.py
