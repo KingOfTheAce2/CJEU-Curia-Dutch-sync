@@ -150,11 +150,23 @@ def main():
     # It will prompt for a token if not already logged in.
     # Ensure your token has 'write' permissions.
     print("\n[Step 1/5] Authenticating with Hugging Face Hub...")
+
+    # Prefer a token from the environment to avoid interactive prompts.
+    token = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+    if not token:
+        print(
+            "Could not find HF_TOKEN or HUGGING_FACE_HUB_TOKEN environment variable. "
+            "Set one of them to authenticate with Hugging Face Hub."
+        )
+        return
+
     try:
-        login()
+        login(token=token)
         print("Authentication successful.")
     except Exception as e:
-        print(f"Could not log in to Hugging Face Hub. Please ensure you have run `huggingface-cli login` or have set the HUGGING_FACE_HUB_TOKEN environment variable. Error: {e}")
+        print(
+            f"Could not log in to Hugging Face Hub. Please check your token. Error: {e}"
+        )
         return
 
     # 2. Load state

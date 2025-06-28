@@ -35,9 +35,12 @@ git clone https://github.com/your-username/your-repo-name.git
 cd your-repo-name
 ```
 
-2. **Set your HF_TOKEN and run the crawler**
+2. **Set your Hugging Face token and run the scraper**
+
+Set either the `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` environment variable before
+running the script:
 
 ```bash
 export HF_TOKEN=your_token
-python update_cases.py
+python CJEU_Scraper.py
 ```
