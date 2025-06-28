@@ -121,7 +121,9 @@ def scrape_celex_from_url(url: str) -> set:
 def fetch_eurlex_content(celex: str) -> str | None:
     """Fetches and extracts the main legal text for a given CELEX number."""
     url = EURLEX_BASE_URL.format(celex=celex)
-    print(f"  Fetching content for {celex} from {url}...")
+    # Print the URL without a trailing ellipsis to avoid confusion that it is
+    # part of the link.
+    print(f"  Fetching content for {celex} from {url}")
     
     response = get_with_retries(url)
     if not response:
