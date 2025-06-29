@@ -4,8 +4,8 @@ import time
 import json
 import requests
 from bs4 import BeautifulSoup
-from datasets import Dataset
-from huggingface_hub import HfApi, HfFolder, login
+from datasets import Dataset, load_dataset, concatenate_datasets
+from huggingface_hub import HfApi, login
 
 # --- Configuration ---
 
@@ -35,6 +35,7 @@ CHECKPOINT_FILE = "processed_celex_numbers.json"
 
 # Processing and network configuration
 BATCH_SIZE = 200  # Number of documents to process in each batch
+MAX_CELEX_PER_RUN = 1000  # Limit CELEX numbers processed per run
 REQUEST_DELAY = 1.5  # Seconds to wait between individual EUR-Lex requests
 RETRY_ATTEMPTS = 3 # Number of retries for failed HTTP requests
 RETRY_DELAY = 5 # Seconds to wait before retrying a failed request
@@ -130,18 +131,10 @@ def fetch_eurlex_content(celex: str) -> str | None:
         return None
 
     soup = BeautifulSoup(response.content, 'html.parser')
-    
-    # The main content of EUR-Lex documents is often in a div with id='document1'
-    content_div = soup.find('div', id='document1')
-    
-    if content_div:
-        # Use a separator for better paragraph handling and strip extra whitespace
-        return content_div.get_text(separator='\n', strip=True)
-    else:
-        # Fallback if the structure is different
-        print(f"  Warning: Could not find <div id='document1'> for {celex}. Falling back to body text.")
-        body = soup.find('body')
-        return body.get_text(separator='\n', strip=True) if body else None
+
+    # Directly return the text of the <body> element
+    body = soup.find('body')
+    return body.get_text(separator='\n', strip=True) if body else None
 
 # --- Main Execution ---
 
@@ -172,11 +165,43 @@ def main():
         )
         return
 
+    api = HfApi()
+
+    # Determine if the dataset already exists
+    dataset_exists = False
+    try:
+        api.dataset_info(HF_DATASET_REPO)
+        dataset_exists = True
+    except Exception:
+        dataset_exists = False
+
+    # 2. Load state
+
     # 2. Load state
     print("\n[Step 2/5] Loading list of already processed CELEX numbers...")
     processed_celex = load_processed_celex()
     is_first_run = not processed_celex
     print(f"Found {len(processed_celex)} CELEX numbers in the checkpoint file.")
+
+    # On the very first run, wipe the existing dataset to start fresh
+    if is_first_run and dataset_exists:
+        try:
+            print("First run detected. Removing existing dataset on Hugging Face...")
+            api.delete_repo(HF_DATASET_REPO, repo_type="dataset")
+            dataset_exists = False
+            print("Dataset deleted.")
+        except Exception as e:
+            print(f"Warning: Could not delete dataset. Proceeding anyway. Error: {e}")
+
+    # Load existing dataset if present
+    existing_dataset = None
+    if dataset_exists:
+        try:
+            existing_dataset = load_dataset(HF_DATASET_REPO, split="train")
+            print(f"Loaded existing dataset with {len(existing_dataset)} records.")
+        except Exception as e:
+            print(f"Warning: Could not load existing dataset. Error: {e}")
+            existing_dataset = None
 
     # 3. Scrape all CELEX numbers
     print("\n[Step 3/5] Scraping Curia websites for CELEX numbers...")
@@ -199,6 +224,11 @@ def main():
     # 4. Determine which CELEX numbers to process
     celex_to_process = sorted(list(all_found_celex - processed_celex))
     print(f"\n[Step 4/5] Found {len(celex_to_process)} new documents to process.")
+
+    # Limit the number of CELEX numbers processed in a single run
+    if len(celex_to_process) > MAX_CELEX_PER_RUN:
+        celex_to_process = celex_to_process[:MAX_CELEX_PER_RUN]
+        print(f"Processing only the first {MAX_CELEX_PER_RUN} new documents this run.")
     
     if not celex_to_process:
         print("No new documents to process. Exiting.")
@@ -235,13 +265,21 @@ def main():
         # Upload the batch to Hugging Face Hub
         try:
             print(f"\nUploading {len(batch_data)} documents from Batch {batch_num} to {HF_DATASET_REPO}...")
-            
+
             # Convert list of dicts to a Hugging Face Dataset object
             hf_dataset = Dataset.from_list(batch_data)
-            
-            # Push to hub. This will append the data.
-            # It will also create the repo if it doesn't exist on the first push.
-            hf_dataset.push_to_hub(HF_DATASET_REPO, private=True) # Use private=True for safety
+
+            # Combine with any existing data so we don't overwrite previous uploads
+            if existing_dataset is not None:
+                combined_dataset = concatenate_datasets([existing_dataset, hf_dataset])
+            else:
+                combined_dataset = hf_dataset
+
+            # Push the combined dataset to the hub
+            combined_dataset.push_to_hub(HF_DATASET_REPO, private=True)
+
+            # Keep track of the dataset we've just uploaded for the next batch
+            existing_dataset = combined_dataset
             
             print("Upload successful!")
             
