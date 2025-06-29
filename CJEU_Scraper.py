@@ -176,22 +176,9 @@ def main():
         dataset_exists = False
 
     # 2. Load state
-
-    # 2. Load state
     print("\n[Step 2/5] Loading list of already processed CELEX numbers...")
     processed_celex = load_processed_celex()
-    is_first_run = not processed_celex
     print(f"Found {len(processed_celex)} CELEX numbers in the checkpoint file.")
-
-    # On the very first run, wipe the existing dataset to start fresh
-    if is_first_run and dataset_exists:
-        try:
-            print("First run detected. Removing existing dataset on Hugging Face...")
-            api.delete_repo(HF_DATASET_REPO, repo_type="dataset")
-            dataset_exists = False
-            print("Dataset deleted.")
-        except Exception as e:
-            print(f"Warning: Could not delete dataset. Proceeding anyway. Error: {e}")
 
     # Load existing dataset if present
     existing_dataset = None
@@ -208,12 +195,7 @@ def main():
     all_found_celex = set()
     
     # Always check dynamic URLs for new content
-    urls_to_scrape = DYNAMIC_URLS[:] 
-    
-    # Only scrape static URLs on the very first run
-    if is_first_run:
-        print("First run detected. Scraping static URLs as well.")
-        urls_to_scrape.extend(STATIC_URLS)
+    urls_to_scrape = DYNAMIC_URLS[:] + STATIC_URLS
 
     for url in urls_to_scrape:
         all_found_celex.update(scrape_celex_from_url(url))
@@ -276,7 +258,7 @@ def main():
                 combined_dataset = hf_dataset
 
             # Push the combined dataset to the hub
-            combined_dataset.push_to_hub(HF_DATASET_REPO, private=True)
+            combined_dataset.push_to_hub(HF_DATASET_REPO, private=False)
 
             # Keep track of the dataset we've just uploaded for the next batch
             existing_dataset = combined_dataset
