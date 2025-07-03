@@ -35,7 +35,7 @@ CHECKPOINT_FILE = "processed_celex_numbers.json"
 
 # Processing and network configuration
 BATCH_SIZE = 200  # Number of documents to process in each batch
-MAX_CELEX_PER_RUN = 1000  # Limit CELEX numbers processed per run
+MAX_CELEX_PER_RUN = 2000  # Limit CELEX numbers processed per run
 REQUEST_DELAY = 1.5  # Seconds to wait between individual EUR-Lex requests
 RETRY_ATTEMPTS = 3 # Number of retries for failed HTTP requests
 RETRY_DELAY = 5 # Seconds to wait before retrying a failed request
