@@ -2,7 +2,7 @@ name: Bi-daily CJEU Update
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # Every other day at 9:00 AM UTC
+    - cron: '0 9/6 * * *'  # Every 6 hours starting at 9:00 AM every day
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
